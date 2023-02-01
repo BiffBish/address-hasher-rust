@@ -131,7 +131,12 @@ fn print_hex(x: i32) {
     print!("{:x}", x);
 }
 
-struct Sha512 {
+const blockSize: usize = 128;
+const finalSize: usize = 112;
+
+pub struct Sha512Hash {
+    _block: [u8; blockSize],
+    _len: usize,
     _w: [i32; 160],
 
     _ah: u32,
@@ -154,10 +159,12 @@ struct Sha512 {
     // _block: [u8; 128]
 }
 
-impl Sha512 {
-    fn new() -> Sha512 {
-        return Sha512 {
+impl Sha512Hash {
+    pub fn new() -> Sha512Hash {
+        return Sha512Hash {
+            _block: [0; blockSize],
             _w: [0; 160],
+            _len: 0,
 
             _ah: 1779033703,
             _bh: 3144134277,
@@ -179,9 +186,120 @@ impl Sha512 {
         };
     }
 
-    fn _update(&mut self, M: [u8; 128]) {
-        let mut W = self._w;
+    pub fn update(&mut self, data: &[u8]) {
+        let length = data.len();
+        let mut accum = self._len;
+        let mut offset = 0;
+        while offset < length {
+            let assigned = accum % blockSize;
+            let remainder = std::cmp::min(length - offset, blockSize - assigned);
+            for i in 0..remainder {
+                self._block[assigned + i] = data[offset + i];
+            }
+            offset += remainder;
+            accum += remainder;
+            if accum % blockSize == 0 {
+                self._update(self._block);
+            }
+        }
+        self._len += length;
+    }
 
+    pub fn reset(&mut self) {
+        self._block.fill(0);
+        self._len = 0;
+        self._ah = 1779033703;
+        self._bh = 3144134277;
+        self._ch = 1013904242;
+        self._dh = 2773480762;
+        self._eh = 1359893119;
+        self._fh = 2600822924;
+        self._gh = 528734635;
+        self._hh = 1541459225;
+        self._al = 4089235720;
+        self._bl = 2227873595;
+        self._cl = 4271175723;
+        self._dl = 1595750129;
+        self._el = 2917565137;
+        self._fl = 725511199;
+        self._gl = 4215389547;
+        self._hl = 327033209;
+    }
+
+    pub fn digest(&mut self) -> Vec<u8> {
+        let rem = self._len % blockSize;
+        self._block[rem] = 128;
+        // Fill the rest of the block with zeros
+        for i in rem + 1..blockSize {
+            self._block[i] = 0;
+        }
+        self._block[blockSize - 9] = 0;
+
+        if rem >= finalSize {
+            self._update(self._block);
+            self._block.fill(0);
+        }
+        let bits = 8 * self._len;
+
+        if bits <= 0xff {
+            self._block[blockSize - 1] = (bits & 255) as u8;
+        } else if bits <= 0xffff {
+            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
+            self._block[blockSize - 1] = (bits & 255) as u8;
+        } else if bits <= 0xffffff {
+            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
+            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
+            self._block[blockSize - 1] = (bits & 255) as u8;
+        } else if bits <= 0xffffffff {
+            self._block[blockSize - 4] = ((bits >> 24) & 255) as u8;
+            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
+            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
+            self._block[blockSize - 1] = (bits & 255) as u8;
+        } else if bits <= 0xffffffffff {
+            self._block[blockSize - 5] = ((bits >> 32) & 255) as u8;
+            self._block[blockSize - 4] = ((bits >> 24) & 255) as u8;
+            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
+            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
+            self._block[blockSize - 1] = (bits & 255) as u8;
+        }
+
+        self._update(self._block);
+        let mut data = vec![0u8; 64];
+
+        fn write_u32_be(data: &mut [u8], offset: usize, value: u32) {
+            data[offset] = (value >> 24) as u8;
+            data[offset + 1] = (value >> 16) as u8;
+            data[offset + 2] = (value >> 8) as u8;
+            data[offset + 3] = value as u8;
+        }
+
+        write_u32_be(&mut data, 0, self._ah);
+        write_u32_be(&mut data, 4, self._al);
+        write_u32_be(&mut data, 8, self._bh);
+        write_u32_be(&mut data, 12, self._bl);
+        write_u32_be(&mut data, 16, self._ch);
+        write_u32_be(&mut data, 20, self._cl);
+        write_u32_be(&mut data, 24, self._dh);
+        write_u32_be(&mut data, 28, self._dl);
+        write_u32_be(&mut data, 32, self._eh);
+        write_u32_be(&mut data, 36, self._el);
+        write_u32_be(&mut data, 40, self._fh);
+        write_u32_be(&mut data, 44, self._fl);
+        write_u32_be(&mut data, 48, self._gh);
+        write_u32_be(&mut data, 52, self._gl);
+        write_u32_be(&mut data, 56, self._hh);
+        write_u32_be(&mut data, 60, self._hl);
+        return data;
+    }
+
+    pub fn _update(&mut self, M: [u8; 128]) {
+        // print!(" _update: ");
+        // for i in 0..128 {
+        //     print!("{:02x},", M[i]);
+        // }
+        // println!("");
+
+        let mut W = self._w;
         for i in (0..32).step_by(2) {
             // for (; i < 32; i += 2) {
             W[i] = i32::from_be_bytes([M[4 * i], M[4 * i + 1], M[4 * i + 2], M[4 * i + 3]]);
@@ -389,8 +507,7 @@ impl Sha512 {
             i32::wrapping_add(dr8, get_carry_32(self._hl as u32, dr0 as u32) as i32),
         ) as u32;
     }
-
-    fn _hash(mut self) -> [u8; 64] {
+    pub fn _hash(mut self) -> [u8; 64] {
         let mut data = [0u8; 64];
 
         fn write_u32_be(data: &mut [u8], offset: usize, value: u32) {
@@ -401,20 +518,20 @@ impl Sha512 {
         }
 
         write_u32_be(&mut data, 0, self._ah);
-        write_u32_be(&mut data, 4, self._bh);
-        write_u32_be(&mut data, 8, self._ch);
-        write_u32_be(&mut data, 12, self._dh);
-        write_u32_be(&mut data, 16, self._eh);
-        write_u32_be(&mut data, 20, self._fh);
-        write_u32_be(&mut data, 24, self._gh);
-        write_u32_be(&mut data, 28, self._hh);
-        write_u32_be(&mut data, 32, self._al);
-        write_u32_be(&mut data, 36, self._bl);
-        write_u32_be(&mut data, 40, self._cl);
-        write_u32_be(&mut data, 44, self._dl);
-        write_u32_be(&mut data, 48, self._el);
-        write_u32_be(&mut data, 52, self._fl);
-        write_u32_be(&mut data, 56, self._gl);
+        write_u32_be(&mut data, 4, self._al);
+        write_u32_be(&mut data, 8, self._bh);
+        write_u32_be(&mut data, 12, self._bl);
+        write_u32_be(&mut data, 16, self._ch);
+        write_u32_be(&mut data, 20, self._cl);
+        write_u32_be(&mut data, 24, self._dh);
+        write_u32_be(&mut data, 28, self._dl);
+        write_u32_be(&mut data, 32, self._eh);
+        write_u32_be(&mut data, 36, self._el);
+        write_u32_be(&mut data, 40, self._fh);
+        write_u32_be(&mut data, 44, self._fl);
+        write_u32_be(&mut data, 48, self._gh);
+        write_u32_be(&mut data, 52, self._gl);
+        write_u32_be(&mut data, 56, self._hh);
         write_u32_be(&mut data, 60, self._hl);
 
         return data;
@@ -427,31 +544,73 @@ pub fn main() {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn sha512Stage1() {
         let now = Instant::now();
 
-        for i in (0..1) {
-            let mut sha = Sha512::new();
-            sha._update([
-                0x45, 0x43, 0x44, 0x44, 0x59, 0x43, 0x58, 0x52, 0x16, 0x5b, 0x5f, 0x45, 0x45, 0x16,
-                0x58, 0x59, 0x5b, 0x5f, 0x58, 0x53, 0x53, 0x16, 0x52, 0x44, 0x53, 0x57, 0x5b, 0x16,
-                0x51, 0x57, 0x46, 0x16, 0x55, 0x44, 0x59, 0x45, 0x45, 0x16, 0x57, 0x45, 0x45, 0x57,
-                0x43, 0x5a, 0x42, 0x16, 0x42, 0x5e, 0x57, 0x58, 0x5d, 0x16, 0x55, 0x57, 0x46, 0x42,
-                0x57, 0x5f, 0x58, 0x16, 0x46, 0x44, 0x59, 0x45, 0x46, 0x53, 0x44, 0x16, 0x52, 0x44,
-                0x59, 0x46, 0x16, 0x52, 0x43, 0x42, 0x4f, 0x16, 0x51, 0x44, 0x59, 0x43, 0x46, 0x16,
-                0x55, 0x57, 0x58, 0x52, 0x4f, 0x16, 0x41, 0x53, 0x57, 0x5a, 0x42, 0x5e, 0x16, 0x41,
-                0x53, 0x57, 0x42, 0x5e, 0x53, 0x44, 0x16, 0x45, 0x55, 0x57, 0x5a, 0x53, 0x16, 0x46,
-                0x43, 0x42, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36,
-                0x36, 0x36,
-            ]);
-            sha._hash();
-        }
+        let mut sha = Sha512Hash::new();
+        sha._update([
+            0x54, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77,
+            0x6e, 0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76,
+            0x65, 0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f,
+            0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ]);
+
+        let hash = sha._hash();
+
+        assert_eq!(
+            hash,
+            [
+                0xb2, 0xdf, 0x56, 0xf0, 0x4c, 0x42, 0x8e, 0xf0, 0x51, 0xc0, 0xc4, 0x74, 0x67, 0x89,
+                0xe6, 0xf6, 0xa8, 0xf9, 0x96, 0x87, 0xe9, 0xaa, 0x19, 0x1b, 0xef, 0x40, 0x42, 0x43,
+                0x40, 0x21, 0x75, 0x4b, 0x21, 0xe1, 0x2c, 0xa6, 0x17, 0x99, 0x9e, 0x85, 0x07, 0x15,
+                0x70, 0x44, 0x70, 0x84, 0x4f, 0xad, 0x79, 0x37, 0x26, 0xad, 0xc4, 0xf7, 0x47, 0xa3,
+                0x81, 0x5d, 0xe0, 0xc7, 0x56, 0x55, 0x0a, 0xb3,
+            ]
+        );
+    }
+
+    #[test]
+    fn sha512Stage2() {
+        let now = Instant::now();
+
+        let mut sha = Sha512Hash::new();
+        sha.update(
+            vec![
+                0x54, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77,
+                0x6e, 0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76,
+                0x65, 0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f,
+                0x67,
+            ]
+            .as_slice(),
+        );
+
+        let hash = sha.digest();
+
+        assert_eq!(
+            hash,
+            [
+                0x07, 0xe5, 0x47, 0xd9, 0x58, 0x6f, 0x6a, 0x73, 0xf7, 0x3f, 0xba, 0xc0, 0x43, 0x5e,
+                0xd7, 0x69, 0x51, 0x21, 0x8f, 0xb7, 0xd0, 0xc8, 0xd7, 0x88, 0xa3, 0x09, 0xd7, 0x85,
+                0x43, 0x6b, 0xbb, 0x64, 0x2e, 0x93, 0xa2, 0x52, 0xa9, 0x54, 0xf2, 0x39, 0x12, 0x54,
+                0x7d, 0x1e, 0x8a, 0x3b, 0x5e, 0xd6, 0xe1, 0xbf, 0xd7, 0x09, 0x78, 0x21, 0x23, 0x3f,
+                0xa0, 0x53, 0x8f, 0x3d, 0xb8, 0x54, 0xfe, 0xe6
+            ]
+        );
+
+        // println!("sha512Stage2 took 0.000ms");
         println!(
-            "Time elapsed in expensive_function() is: {:?}",
-            now.elapsed()
+            "sha512Stage2 took {}ms",
+            now.elapsed().as_micros() as f64 / 1000.0
         );
     }
 }
