@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{iter, time::Instant};
 
 use crate::sha512hash;
 macro_rules! time_it {
@@ -15,6 +15,26 @@ pub struct Hmac {
     ipad: Vec<u8>,
     opad: Vec<u8>,
     hash: sha512hash::Sha512Hash,
+}
+
+fn printHex(prefix: &str, itt: impl Iterator<Item = u8>) {
+    print!("{}  ", prefix);
+
+    // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
+    //         ff, ff, ff, ff, ff, ff, ff, ff, ff
+    let mut count = 0;
+    for i in itt {
+        if count % 16 == 0 && count != 0 {
+            let padding = iter::repeat(" ").take(prefix.len()).collect::<String>();
+            println!();
+            print!("{}  ", padding);
+        }
+
+        print!("{:02x}, ", i);
+        count += 1;
+    }
+    println!();
+    println!();
 }
 
 impl Hmac {
@@ -71,18 +91,18 @@ impl Hmac {
         self.hash.update(&self.opad);
         self.hash.update(&h);
         let res = self.hash.digest();
-        self.hash.reset();
+        self._reset();
         res
     }
 
     pub fn _encrypt(&mut self, data: &Vec<u8>) -> Vec<u8> {
+        // printHex("[HMAC] ipad", self.ipad.iter().cloned());
         // time_it!("_encrypt update", self.hash.update(&data));
         // time_it!("_encrypt _final", let a = self._final());
         // a
-
+        // printHex("[HMAC] data", data.iter().cloned());
         self.hash.update(&data);
-        let a = self._final();
-        a
+        self._final()
     }
 
     pub fn _reset(&mut self) {
