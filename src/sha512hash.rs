@@ -89,53 +89,11 @@ fn get_carry_32(a: u32, b: u32) -> u32 {
     }
 }
 
-fn print_bits(debug: &str, x: i64) {
-    // print out the debug message padded to 20 characters
-    print!("{:20}", debug);
-
-    // Print out the bits of a 64-bit integer in big-endian order
-    for i in 0..64 {
-        if (x >> (63 - i)) & 1 == 1 {
-            print!("1");
-        } else {
-            print!("0");
-        }
-        if i % 32 == 31 {
-            print!(" ");
-        }
-    }
-    println!("");
-}
-
-fn print_bits_32(debug: &str, x: i32) {
-    // print out the debug message padded to 20 characters
-    print!("{:20}", debug);
-    // Add a bunch of zeros to the front of the string
-    print!("{:0>32}", "");
-    print!(" ");
-    // Print out the bits of a 64-bit integer in big-endian order
-    for i in 0..32 {
-        if (x >> (31 - i)) & 1 == 1 {
-            print!("1");
-        } else {
-            print!("0");
-        }
-        if i % 32 == 31 {
-            print!(" ");
-        }
-    }
-    println!("");
-}
-
-fn print_hex(x: i32) {
-    print!("{:x}", x);
-}
-
-const blockSize: usize = 128;
-const finalSize: usize = 112;
+const BLOCK_SIZE: usize = 128;
+const FINAL_SIZE: usize = 112;
 
 pub struct Sha512Hash {
-    _block: [u8; blockSize],
+    _block: [u8; BLOCK_SIZE],
     _len: usize,
     _w: [i32; 160],
 
@@ -162,9 +120,9 @@ pub struct Sha512Hash {
 impl Sha512Hash {
     pub fn new() -> Sha512Hash {
         return Sha512Hash {
-            _block: [0; blockSize],
-            _w: [0; 160],
+            _block: [0; BLOCK_SIZE],
             _len: 0,
+            _w: [0; 160],
 
             _ah: 1779033703,
             _bh: 3144134277,
@@ -191,14 +149,14 @@ impl Sha512Hash {
         let mut accum = self._len;
         let mut offset = 0;
         while offset < length {
-            let assigned = accum % blockSize;
-            let remainder = std::cmp::min(length - offset, blockSize - assigned);
+            let assigned = accum % BLOCK_SIZE;
+            let remainder = std::cmp::min(length - offset, BLOCK_SIZE - assigned);
             for i in 0..remainder {
                 self._block[assigned + i] = data[offset + i];
             }
             offset += remainder;
             accum += remainder;
-            if accum % blockSize == 0 {
+            if accum % BLOCK_SIZE == 0 {
                 self._update(self._block);
             }
         }
@@ -227,40 +185,40 @@ impl Sha512Hash {
     }
 
     pub fn digest(&mut self) -> Vec<u8> {
-        let rem = self._len % blockSize;
+        let rem = self._len % BLOCK_SIZE;
         self._block[rem] = 128;
         // Fill the rest of the block with zeros
-        for i in rem + 1..blockSize {
+        for i in rem + 1..BLOCK_SIZE {
             self._block[i] = 0;
         }
-        self._block[blockSize - 9] = 0;
+        self._block[BLOCK_SIZE - 9] = 0;
 
-        if rem >= finalSize {
+        if rem >= FINAL_SIZE {
             self._update(self._block);
             self._block.fill(0);
         }
         let bits = 8 * self._len;
 
         if bits <= 0xff {
-            self._block[blockSize - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
         } else if bits <= 0xffff {
-            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
-            self._block[blockSize - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
         } else if bits <= 0xffffff {
-            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
-            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
-            self._block[blockSize - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
+            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
         } else if bits <= 0xffffffff {
-            self._block[blockSize - 4] = ((bits >> 24) & 255) as u8;
-            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
-            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
-            self._block[blockSize - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 4] = ((bits >> 24) & 255) as u8;
+            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
+            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
         } else if bits <= 0xffffffffff {
-            self._block[blockSize - 5] = ((bits >> 32) & 255) as u8;
-            self._block[blockSize - 4] = ((bits >> 24) & 255) as u8;
-            self._block[blockSize - 3] = ((bits >> 16) & 255) as u8;
-            self._block[blockSize - 2] = ((bits >> 8) & 255) as u8;
-            self._block[blockSize - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 5] = ((bits >> 32) & 255) as u8;
+            self._block[BLOCK_SIZE - 4] = ((bits >> 24) & 255) as u8;
+            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
+            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
         }
 
         self._update(self._block);
@@ -292,18 +250,12 @@ impl Sha512Hash {
         return data;
     }
 
-    pub fn _update(&mut self, M: [u8; 128]) {
-        // print!(" _update: ");
-        // for i in 0..128 {
-        //     print!("{:02x},", M[i]);
-        // }
-        // println!("");
-
-        let mut W = self._w;
+    pub fn _update(&mut self, m: [u8; 128]) {
+        let mut w = self._w;
         for i in (0..32).step_by(2) {
             // for (; i < 32; i += 2) {
-            W[i] = i32::from_be_bytes([M[4 * i], M[4 * i + 1], M[4 * i + 2], M[4 * i + 3]]);
-            W[i + 1] = i32::from_be_bytes([M[4 * i + 4], M[4 * i + 5], M[4 * i + 6], M[4 * i + 7]]);
+            w[i] = i32::from_be_bytes([m[4 * i], m[4 * i + 1], m[4 * i + 2], m[4 * i + 3]]);
+            w[i + 1] = i32::from_be_bytes([m[4 * i + 4], m[4 * i + 5], m[4 * i + 6], m[4 * i + 7]]);
         }
         let mut xh: i32;
         let mut xl: i32;
@@ -311,44 +263,44 @@ impl Sha512Hash {
         let mut vgamma0l: i32;
         let mut vgamma1: i32;
         let mut vgamma1l: i32;
-        let mut Wi7h: i32;
-        let mut Wi7l: i32;
-        let mut Wi16h: i32;
-        let mut Wi16l: i32;
-        let mut Wil: i32;
-        let mut Wih: i32;
+        let mut wi7h: i32;
+        let mut wi7l: i32;
+        let mut wi16h: i32;
+        let mut wi16l: i32;
+        let mut wil: i32;
+        let mut wih: i32;
 
         for i in (32..160).step_by(2) {
-            xh = W[i - 30];
-            xl = W[i - 30 + 1];
+            xh = w[i - 30];
+            xl = w[i - 30 + 1];
             vgamma0 = gamma0_32(xh, xl);
             vgamma0l = gamma0l_32(xl, xh);
-            xh = W[i - 4];
-            xl = W[i - 4 + 1];
+            xh = w[i - 4];
+            xl = w[i - 4 + 1];
             vgamma1 = gamma1_32(xh, xl);
             vgamma1l = gamma1l_32(xl, xh);
-            Wi7h = W[i - 14];
-            Wi7l = W[i - 14 + 1];
-            Wi16h = W[i - 32];
-            Wi16l = W[i - 32 + 1];
-            Wil = i32::wrapping_add(vgamma0l as i32, Wi7l as i32);
-            Wih = i32::wrapping_add(
-                i32::wrapping_add(vgamma0, Wi7h),
-                get_carry_32(Wil as u32, vgamma0l as u32) as i32,
+            wi7h = w[i - 14];
+            wi7l = w[i - 14 + 1];
+            wi16h = w[i - 32];
+            wi16l = w[i - 32 + 1];
+            wil = i32::wrapping_add(vgamma0l as i32, wi7l as i32);
+            wih = i32::wrapping_add(
+                i32::wrapping_add(vgamma0, wi7h),
+                get_carry_32(wil as u32, vgamma0l as u32) as i32,
             ) | 0;
-            Wil = i32::wrapping_add(Wil, vgamma1l) | 0;
-            Wih = i32::wrapping_add(
-                Wih,
-                i32::wrapping_add(vgamma1, get_carry_32(Wil as u32, vgamma1l as u32) as i32),
+            wil = i32::wrapping_add(wil, vgamma1l) | 0;
+            wih = i32::wrapping_add(
+                wih,
+                i32::wrapping_add(vgamma1, get_carry_32(wil as u32, vgamma1l as u32) as i32),
             ) | 0;
-            Wil = i32::wrapping_add(Wil, Wi16l) | 0;
-            Wih = i32::wrapping_add(
-                Wih,
-                i32::wrapping_add(Wi16h, get_carry_32(Wil as u32, Wi16l as u32) as i32),
+            wil = i32::wrapping_add(wil, wi16l) | 0;
+            wih = i32::wrapping_add(
+                wih,
+                i32::wrapping_add(wi16h, get_carry_32(wil as u32, wi16l as u32) as i32),
             ) | 0;
 
-            W[i] = Wih as i32;
-            W[i + 1] = Wil as i32;
+            w[i] = wih as i32;
+            w[i + 1] = wil as i32;
         }
 
         let ah = self._ah as i32;
@@ -394,7 +346,7 @@ impl Sha512Hash {
         let mut chl;
         let mut vsigma0l;
 
-        let mut Wil: i32;
+        let mut wil: i32;
 
         for j in (0..160).step_by(2) {
             // for (var j = 0; j < 160; j += 2) {
@@ -405,7 +357,7 @@ impl Sha512Hash {
                 get_carry_32(t1l as u32, dr0 as u32) as i32,
             );
 
-            Wil = W[j + 1] as i32;
+            wil = w[j + 1] as i32;
             chl = cha(dr13, dr14, dr15);
             t1l = i32::wrapping_add(t1l, chl);
             t1h = i32::wrapping_add(
@@ -420,7 +372,7 @@ impl Sha512Hash {
                 t1h,
                 i32::wrapping_add(K[j] as i32, get_carry_32(t1l as u32, kil as u32) as i32),
             );
-            t1l = i32::wrapping_add(t1l, Wil);
+            t1l = i32::wrapping_add(t1l, wil);
             vsigma0l = sigma0_32(dr9 as u32, dr1 as u32) as i32;
             let majr = maj(dr9 as i32, dr10 as i32, dr11 as i32);
 
@@ -444,7 +396,7 @@ impl Sha512Hash {
 
             t1h = i32::wrapping_add(
                 t1h,
-                i32::wrapping_add(W[j] as i32, get_carry_32(t1l as u32, Wil as u32) as i32),
+                i32::wrapping_add(w[j] as i32, get_carry_32(t1l as u32, wil as u32) as i32),
             );
 
             dr5 = i32::wrapping_add(
@@ -538,9 +490,7 @@ impl Sha512Hash {
     }
 }
 
-pub fn main() {
-    println!("Hello, world!");
-}
+pub fn main() {}
 
 #[cfg(test)]
 mod tests {
@@ -548,7 +498,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sha512Stage1() {
+    fn sha512_stage1() {
         let now = Instant::now();
 
         let mut sha = Sha512Hash::new();
@@ -580,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn sha512Stage2() {
+    fn sha512_stage2() {
         let now = Instant::now();
 
         let mut sha = Sha512Hash::new();

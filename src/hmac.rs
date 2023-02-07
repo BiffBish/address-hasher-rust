@@ -17,39 +17,19 @@ pub struct Hmac {
     hash: sha512hash::Sha512Hash,
 }
 
-fn printHex(prefix: &str, itt: impl Iterator<Item = u8>) {
-    print!("{}  ", prefix);
-
-    // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
-    //         ff, ff, ff, ff, ff, ff, ff, ff, ff
-    let mut count = 0;
-    for i in itt {
-        if count % 16 == 0 && count != 0 {
-            let padding = iter::repeat(" ").take(prefix.len()).collect::<String>();
-            println!();
-            print!("{}  ", padding);
-        }
-
-        print!("{:02x}, ", i);
-        count += 1;
-    }
-    println!();
-    println!();
-}
-
 impl Hmac {
     pub fn new(key: Vec<u8>) -> Hmac {
         let blocksize = 128;
         let mut ipad = vec![0; blocksize];
         let mut opad = vec![0; blocksize];
         let mut hash = sha512hash::Sha512Hash::new();
-        let mut newKey: &[u8];
+        let mut new_key: &[u8];
         if key.len() > blocksize {
             hash.update(&key);
-            newKey = &hash.digest();
+            new_key = &hash.digest();
         } else {
             // Convert vec to [u8; 64]
-            newKey = &key;
+            new_key = &key;
         }
         for i in 0..key.len() {
             ipad[i] = 54 ^ key[i];
@@ -96,11 +76,6 @@ impl Hmac {
     }
 
     pub fn _encrypt(&mut self, data: &Vec<u8>) -> Vec<u8> {
-        // printHex("[HMAC] ipad", self.ipad.iter().cloned());
-        // time_it!("_encrypt update", self.hash.update(&data));
-        // time_it!("_encrypt _final", let a = self._final());
-        // a
-        // printHex("[HMAC] data", data.iter().cloned());
         self.hash.update(&data);
         self._final()
     }
@@ -117,7 +92,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sha512Stage1() {
+    fn hmac() {
         let now = Instant::now();
 
         // for i in (0..100000) {

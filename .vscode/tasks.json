@@ -4,9 +4,23 @@
     {
       "type": "cargo",
       "command": "build",
-      "problemMatcher": ["$rustc"],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "group": "build",
       "label": "rust: cargo build"
+    },
+    {
+      "type": "cargo",
+      "command": "run",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "label": "rust: cargo run ",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
     }
   ]
 }
