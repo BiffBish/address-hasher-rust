@@ -1,4 +1,11 @@
 // #![allow(arithmetic_overflow)]
+use crate::{big_int::BigInt, curve, point::Point};
+use crate::{
+    profile, Profile, IS_PROFILE_RECONCILING, IS_PROFILING, PROFILING_DEPTH, PROFILING_MAP,
+    PROFILING_PATH,
+};
+use colored::Colorize;
+use std::hint::black_box;
 
 const K: [u32; 160] = [
     1116352408, 3609767458, 1899447441, 602891725, 3049323471, 3964484399, 3921009573, 2173295548,
@@ -33,7 +40,6 @@ fn cha<T: std::ops::BitXor<Output = T> + std::ops::BitAnd<Output = T> + Copy>(
 fn maj(x: i32, y: i32, z: i32) -> i32 {
     return (x & y) | (z & (x | y));
 }
-
 fn sigma0_32(x: u32, xl: u32) -> u32 {
     return (x >> 28 | (i32::wrapping_shl(xl as i32, 4) as u32))
         ^ ((xl >> 2) | (i32::wrapping_shl(x as i32, 30) as u32))
@@ -72,29 +78,7 @@ fn get_carry_32(a: u32, b: u32) -> u32 {
     }
 }
 
-// fn printHex8(prefix: &str, itt: impl Iterator<Item = u8>) {
-//     print!("{}  ", prefix);
-
-//     // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
-//     //         ff, ff, ff, ff, ff, ff, ff, ff, ff
-//     let mut count = 0;
-//     for i in itt {
-//         print!("{:02x}", i);
-//         if count % 4 == 3 {
-//             print!(", ");
-//         }
-//         if count % 16 == 15 {
-//             println!();
-//             print!("   ");
-//         }
-
-//         count += 1;
-//     }
-//     println!();
-//     println!();
-// }
-
-// fn printHex32(prefix: &str, itt: impl Iterator<Item = i32>) {
+// fn printHex(prefix: &str, itt: impl Iterator<Item = u32>) {
 //     print!("{}  ", prefix);
 
 //     // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
@@ -114,11 +98,31 @@ fn get_carry_32(a: u32, b: u32) -> u32 {
 //     println!();
 // }
 
-const BLOCK_SIZE: usize = 128;
-const FINAL_SIZE: usize = 112;
+// fn printHexi32(prefix: &str, itt: impl Iterator<Item = i32>) {
+//     print!("{}  ", prefix);
 
+//     // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
+//     //         ff, ff, ff, ff, ff, ff, ff, ff, ff
+//     let mut count = 0;
+//     for i in itt {
+//         if count % 4 == 0 && count != 0 {
+//             let padding = iter::repeat(" ").take(prefix.len()).collect::<String>();
+//             println!();
+//             print!("{}  ", padding);
+//         }
+
+//         print!("{:08x}, ", i);
+//         count += 1;
+//     }
+//     println!();
+//     println!();
+// }
+
+const BLOCK_SIZE: usize = 32;
+const FINAL_SIZE: usize = 28;
+#[derive(Debug, Clone)]
 pub struct Sha512Hash {
-    _block: [u8; BLOCK_SIZE],
+    _block: [u32; BLOCK_SIZE],
     _len: usize,
     _w: [i32; 160],
 
@@ -168,8 +172,8 @@ impl Sha512Hash {
             _hl: 327033209,
         };
     }
-
-    pub fn update(&mut self, data: &[u8]) {
+    #[profile()]
+    pub fn update(&mut self, data: &[u32]) {
         let length = data.len();
         let mut accum = self._len;
         let mut offset = 0;
@@ -209,11 +213,13 @@ impl Sha512Hash {
         self._hl = 327033209;
     }
 
-    pub fn digest(&mut self) -> Vec<u8> {
+    pub fn digest(&mut self) -> Vec<u32> {
         let rem = self._len % BLOCK_SIZE;
-        // println!("rem: {} len: {}", rem, self._len);
 
-        self._block[rem] = 128;
+        // printHex("_update self._block before", self._block.iter().cloned());
+        // println!("rem: {} len: {}", rem, self._len);
+        self._block[rem] = 0x80000000;
+
         // Fill the rest of the block with zeros
         for i in rem + 1..BLOCK_SIZE {
             self._block[i] = 0;
@@ -224,70 +230,38 @@ impl Sha512Hash {
             self._update(self._block);
             self._block.fill(0);
         }
-        let bits = 8 * self._len;
+        let bits = 8 * 4 * self._len;
 
         if bits <= 0xff {
-            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = bits as u32
         } else if bits <= 0xffff {
-            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
-            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = bits as u32
         } else if bits <= 0xffffff {
-            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
-            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
-            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
-        } else if bits <= 0xffffffff {
-            self._block[BLOCK_SIZE - 4] = ((bits >> 24) & 255) as u8;
-            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
-            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
-            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
-        } else if bits <= 0xffffffffff {
-            self._block[BLOCK_SIZE - 5] = ((bits >> 32) & 255) as u8;
-            self._block[BLOCK_SIZE - 4] = ((bits >> 24) & 255) as u8;
-            self._block[BLOCK_SIZE - 3] = ((bits >> 16) & 255) as u8;
-            self._block[BLOCK_SIZE - 2] = ((bits >> 8) & 255) as u8;
-            self._block[BLOCK_SIZE - 1] = (bits & 255) as u8;
+            self._block[BLOCK_SIZE - 1] = bits as u32
+        } else {
+            self._block[BLOCK_SIZE - 1] = bits as u32
         }
+
+        // printHex("_update self._block", self._block.iter().cloned());
 
         self._update(self._block);
-        let mut data = vec![0u8; 64];
 
-        fn write_u32_be(data: &mut [u8], offset: usize, value: u32) {
-            data[offset] = (value >> 24) as u8;
-            data[offset + 1] = (value >> 16) as u8;
-            data[offset + 2] = (value >> 8) as u8;
-            data[offset + 3] = value as u8;
-        }
+        let data = vec![
+            self._ah, self._al, self._bh, self._bl, self._ch, self._cl, self._dh, self._dl,
+            self._eh, self._el, self._fh, self._fl, self._gh, self._gl, self._hh, self._hl,
+        ];
+        // println!("data: {:?}", data);
 
-        write_u32_be(&mut data, 0, self._ah);
-        write_u32_be(&mut data, 4, self._al);
-        write_u32_be(&mut data, 8, self._bh);
-        write_u32_be(&mut data, 12, self._bl);
-        write_u32_be(&mut data, 16, self._ch);
-        write_u32_be(&mut data, 20, self._cl);
-        write_u32_be(&mut data, 24, self._dh);
-        write_u32_be(&mut data, 28, self._dl);
-        write_u32_be(&mut data, 32, self._eh);
-        write_u32_be(&mut data, 36, self._el);
-        write_u32_be(&mut data, 40, self._fh);
-        write_u32_be(&mut data, 44, self._fl);
-        write_u32_be(&mut data, 48, self._gh);
-        write_u32_be(&mut data, 52, self._gl);
-        write_u32_be(&mut data, 56, self._hh);
-        write_u32_be(&mut data, 60, self._hl);
         return data;
     }
-
-    pub fn _update(&mut self, m: [u8; 128]) {
-        // printHex8("m", m.iter().cloned());
-
+    #[profile()]
+    pub fn _update(&mut self, m: [u32; 32]) {
+        // printHex("m", m.iter().cloned());
         let mut w = self._w;
-        for i in (0..32).step_by(2) {
-            // for (; i < 32; i += 2) {
-            w[i] = i32::from_be_bytes([m[4 * i], m[4 * i + 1], m[4 * i + 2], m[4 * i + 3]]);
-            w[i + 1] = i32::from_be_bytes([m[4 * i + 4], m[4 * i + 5], m[4 * i + 6], m[4 * i + 7]]);
+        for i in 0..32 {
+            w[i] = m[i] as i32;
         }
-        // printHex32("w", w.iter().cloned());
-
+        // printHexi32("w", w.iter().cloned());
         let mut xh: i32;
         let mut xl: i32;
         let mut vgamma0: i32;
@@ -507,32 +481,25 @@ impl Sha512Hash {
         // println!("gh: {:x}", self._gh);
         // println!("hh: {:x}", self._hh);
     }
-    pub fn _hash(&self) -> [u8; 64] {
-        let mut data = [0u8; 64];
+    pub fn _hash(&self) -> [u32; 16] {
+        let mut data = [0u32; 16];
 
-        fn write_u32_be(data: &mut [u8], offset: usize, value: u32) {
-            data[offset] = (value >> 24) as u8;
-            data[offset + 1] = (value >> 16) as u8;
-            data[offset + 2] = (value >> 8) as u8;
-            data[offset + 3] = value as u8;
-        }
-
-        write_u32_be(&mut data, 0, self._ah);
-        write_u32_be(&mut data, 4, self._al);
-        write_u32_be(&mut data, 8, self._bh);
-        write_u32_be(&mut data, 12, self._bl);
-        write_u32_be(&mut data, 16, self._ch);
-        write_u32_be(&mut data, 20, self._cl);
-        write_u32_be(&mut data, 24, self._dh);
-        write_u32_be(&mut data, 28, self._dl);
-        write_u32_be(&mut data, 32, self._eh);
-        write_u32_be(&mut data, 36, self._el);
-        write_u32_be(&mut data, 40, self._fh);
-        write_u32_be(&mut data, 44, self._fl);
-        write_u32_be(&mut data, 48, self._gh);
-        write_u32_be(&mut data, 52, self._gl);
-        write_u32_be(&mut data, 56, self._hh);
-        write_u32_be(&mut data, 60, self._hl);
+        data[0] = self._ah;
+        data[1] = self._al;
+        data[2] = self._bh;
+        data[3] = self._bl;
+        data[4] = self._ch;
+        data[5] = self._cl;
+        data[6] = self._dh;
+        data[7] = self._dl;
+        data[8] = self._eh;
+        data[9] = self._el;
+        data[10] = self._fh;
+        data[11] = self._fl;
+        data[12] = self._gh;
+        data[13] = self._gl;
+        data[14] = self._hh;
+        data[15] = self._hl;
 
         return data;
     }
@@ -549,16 +516,11 @@ mod tests {
     fn sha512_stage1() {
         let mut sha = Sha512Hash::new();
         sha._update([
-            0x54, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77,
-            0x6e, 0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76,
-            0x65, 0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f,
-            0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00,
+            0x54686520, 0x71756963, 0x6b206272, 0x6f776e20, 0x666f7820, 0x6a756d70, 0x73206f76,
+            0x65722074, 0x6865206c, 0x617a7920, 0x646f6700, 0x00000000, 0x00000000, 0x00000000,
+            0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+            0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+            0x00000000, 0x00000000, 0x00000000, 0x00000000,
         ]);
 
         let hash = sha._hash();
@@ -566,11 +528,9 @@ mod tests {
         assert_eq!(
             hash,
             [
-                0xb2, 0xdf, 0x56, 0xf0, 0x4c, 0x42, 0x8e, 0xf0, 0x51, 0xc0, 0xc4, 0x74, 0x67, 0x89,
-                0xe6, 0xf6, 0xa8, 0xf9, 0x96, 0x87, 0xe9, 0xaa, 0x19, 0x1b, 0xef, 0x40, 0x42, 0x43,
-                0x40, 0x21, 0x75, 0x4b, 0x21, 0xe1, 0x2c, 0xa6, 0x17, 0x99, 0x9e, 0x85, 0x07, 0x15,
-                0x70, 0x44, 0x70, 0x84, 0x4f, 0xad, 0x79, 0x37, 0x26, 0xad, 0xc4, 0xf7, 0x47, 0xa3,
-                0x81, 0x5d, 0xe0, 0xc7, 0x56, 0x55, 0x0a, 0xb3,
+                0xb2df56f0, 0x4c428ef0, 0x51c0c474, 0x6789e6f6, 0xa8f99687, 0xe9aa191b, 0xef404243,
+                0x4021754b, 0x21e12ca6, 0x17999e85, 0x07157044, 0x70844fad, 0x793726ad, 0xc4f747a3,
+                0x815de0c7, 0x56550ab3,
             ]
         );
     }
@@ -582,23 +542,20 @@ mod tests {
         let mut sha = Sha512Hash::new();
         sha.update(
             vec![
-                0x54, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77,
-                0x6e, 0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76,
-                0x65, 0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f,
-                0x67, 0x00,
+                0x54686520, 0x71756963, 0x6b206272, 0x6f776e20, 0x666f7820, 0x6a756d70, 0x73206f76,
+                0x65722074, 0x6865206c, 0x617a7920, 0x646f6700,
             ]
             .as_slice(),
         );
 
         let hash = sha.digest();
+
         assert_eq!(
             hash,
             [
-                0x96, 0x2a, 0x42, 0xf5, 0xc9, 0xb8, 0x71, 0x1e, 0x85, 0x8a, 0x9b, 0x8b, 0x66, 0xe9,
-                0x03, 0xa1, 0x37, 0x65, 0xd7, 0x0b, 0xed, 0x7b, 0x30, 0x6b, 0x3d, 0xc3, 0x39, 0x41,
-                0x9b, 0xd3, 0x4e, 0xd7, 0x0d, 0x6e, 0x6a, 0x1b, 0xcf, 0xb5, 0xdf, 0x13, 0x1d, 0x87,
-                0x72, 0xc1, 0x3c, 0xe5, 0xb0, 0x54, 0x98, 0x1a, 0x70, 0x5e, 0xfe, 0xbb, 0x04, 0x8b,
-                0xdd, 0x7c, 0x5f, 0x4b, 0x60, 0x6d, 0xcf, 0xa5,
+                0x962a42f5, 0xc9b8711e, 0x858a9b8b, 0x66e903a1, 0x3765d70b, 0xed7b306b, 0x3dc33941,
+                0x9bd34ed7, 0x0d6e6a1b, 0xcfb5df13, 0x1d8772c1, 0x3ce5b054, 0x981a705e, 0xfebb048b,
+                0xdd7c5f4b, 0x606dcfa5
             ]
         );
 

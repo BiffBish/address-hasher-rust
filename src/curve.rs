@@ -1,13 +1,13 @@
-use crate::{bigInt::BigInt, point::Point};
+use crate::{big_int::BigInt, point::Point};
 
 #[derive(Debug, Clone)]
 pub struct Curve {
     pub p: BigInt,
     pub a: BigInt,
     pub n: BigInt,
-    pub G: Point,
+    pub g: Point,
     pub infinity: Point,
-    pub pLength: usize,
+    pub p_length: usize,
 }
 
 pub static SECP251K1P: once_cell::sync::Lazy<BigInt> = once_cell::sync::Lazy::new(|| {
@@ -18,7 +18,6 @@ pub static SECP251K1P: once_cell::sync::Lazy<BigInt> = once_cell::sync::Lazy::ne
             0xff, 0xff, 0xfc, 0x2f,
         ]
         .iter(),
-        256,
     )
 });
 
@@ -31,7 +30,6 @@ impl Curve {
                 0x16, 0xf8, 0x17, 0x98,
             ]
             .iter(),
-            256,
         );
 
         let y = BigInt::new_from_iterator(
@@ -41,13 +39,12 @@ impl Curve {
                 0xfb, 0x10, 0xd4, 0xb8,
             ]
             .iter(),
-            256,
         );
 
         let c = Curve {
             p: SECP251K1P.clone(),
-            a: BigInt::new_from_iterator([0x00].iter(), 256),
-            G: Point::from_affine(x, y),
+            a: BigInt::new_from_iterator([0x00].iter()),
+            g: Point::from_affine(x, y),
             n: BigInt::new_from_iterator(
                 [
                     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -55,10 +52,9 @@ impl Curve {
                     0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
                 ]
                 .iter(),
-                256,
             ),
             infinity: Point::new(BigInt::nvb(0), BigInt::nvb(0), BigInt::nvb(0)),
-            pLength: 32,
+            p_length: 32,
         };
 
         c

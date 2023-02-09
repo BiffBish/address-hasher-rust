@@ -1,39 +1,25 @@
-use std::iter;
-use std::time::Instant;
+use colored::Colorize;
+use std::hint::black_box;
 
-use crate::hmac;
-use crate::sha512hash;
+use crate::hmac32::Hmac;
+use crate::{
+    profile, Profile, IS_PROFILE_RECONCILING, IS_PROFILING, PROFILING_DEPTH, PROFILING_MAP,
+    PROFILING_PATH,
+};
 
-pub fn pbkdf2(password: Vec<u8>, salt: Vec<u8>, count: u32, length: usize) -> Vec<u8> {
-    let mut prf = hmac::Hmac::new(password);
-    let mut u: Vec<u8>;
-    let mut ui: Vec<u8>;
+#[profile()]
+pub fn pbkdf2_32(password: Vec<u32>, salt: Vec<u32>, count: u32, length: usize) -> Vec<u32> {
+    let mut prf = Hmac::new(password);
+    let mut u: Vec<u32>;
+    let mut ui: Vec<u32>;
     let mut k: u32 = 1;
-    let mut out: Vec<u8> = vec![];
-
+    let mut out: Vec<u32> = vec![];
     while 32 * out.len() < length {
-        let thing: Vec<u8> = vec![
-            salt.clone(),
-            vec![(k >> 24) as u8, (k >> 16) as u8, (k >> 8) as u8, k as u8],
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        // Print out thing to see if it's the same as the JS version [ 0xff, 0xff, 0xff, 0xff, ...]
-        // printHex("[thing] ", thing.iter().cloned());
-
+        let thing: Vec<u32> = vec![salt.clone(), vec![k]].into_iter().flatten().collect();
         ui = prf._encrypt(&thing);
-        // printHex(format!("[ui] p").as_str(), ui.iter().cloned());
-
         u = ui.clone();
-
-        for i in 1..count {
-            // println!("i: {}", i);
-            // time_it!("  _encrypt loop", );
+        for _ in 1..count {
             ui = prf._encrypt(&ui);
-            // printHex(format!("[ui] {}", i).as_str(), ui.iter().cloned());
-            // ui = prf._encrypt(&ui);
             for j in 0..ui.len() {
                 u[j] ^= ui[j];
             }

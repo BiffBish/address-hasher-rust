@@ -1,6 +1,3 @@
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-
 // #![allow(arithmetic_overflow)]
 
 const K: [u32; 64] = [
@@ -32,24 +29,24 @@ fn maj(x: i32, y: i32, z: i32) -> i32 {
 // }
 
 fn sigma0(x: u32) -> u32 {
-    return (((x >> 2) | i32::wrapping_shl(x as i32, 30) as u32)
+    return ((x >> 2) | i32::wrapping_shl(x as i32, 30) as u32)
         ^ ((x >> 13) | i32::wrapping_shl(x as i32, 19) as u32)
-        ^ ((x >> 22) | i32::wrapping_shl(x as i32, 10) as u32));
+        ^ ((x >> 22) | i32::wrapping_shl(x as i32, 10) as u32);
 }
 fn sigma1(x: u32) -> u32 {
     //   return (
     //     ((x >>> 6) | (x << 26)) ^ ((x >>> 11) | (x << 21)) ^ ((x >>> 25) | (x << 7))
     //   );
     // }
-    return (((x >> 6) | i32::wrapping_shl(x as i32, 26) as u32)
+    return ((x >> 6) | i32::wrapping_shl(x as i32, 26) as u32)
         ^ ((x >> 11) | i32::wrapping_shl(x as i32, 21) as u32)
-        ^ ((x >> 25) | i32::wrapping_shl(x as i32, 7) as u32));
+        ^ ((x >> 25) | i32::wrapping_shl(x as i32, 7) as u32);
 }
 fn gamma0(x: u32) -> u32 {
     //   return ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
-    return (((x >> 7) | i32::wrapping_shl(x as i32, 25) as u32)
+    return ((x >> 7) | i32::wrapping_shl(x as i32, 25) as u32)
         ^ ((x >> 18) | i32::wrapping_shl(x as i32, 14) as u32)
-        ^ (x >> 3));
+        ^ (x >> 3);
 }
 
 const BLOCK_SIZE: usize = 64;
@@ -108,18 +105,18 @@ impl Sha256Hash {
         self._len += length;
     }
 
-    pub fn reset(&mut self) {
-        self._block.fill(0);
-        self._len = 0;
-        self._a = 1779033703;
-        self._b = 3144134277;
-        self._c = 1013904242;
-        self._d = 2773480762;
-        self._e = 1359893119;
-        self._f = 2600822924;
-        self._g = 528734635;
-        self._h = 1541459225;
-    }
+    // pub fn reset(&mut self) {
+    //     self._block.fill(0);
+    //     self._len = 0;
+    //     self._a = 1779033703;
+    //     self._b = 3144134277;
+    //     self._c = 1013904242;
+    //     self._d = 2773480762;
+    //     self._e = 1359893119;
+    //     self._f = 2600822924;
+    //     self._g = 528734635;
+    //     self._h = 1541459225;
+    // }
 
     pub fn digest(&mut self) -> Vec<u8> {
         let rem = self._len % BLOCK_SIZE;
@@ -197,26 +194,11 @@ impl Sha256Hash {
             let a = ((x as u32 >> 17) | (i32::wrapping_shl(x, 15)) as u32)
                 ^ ((x as u32 >> 19) | i32::wrapping_shl(x, 13) as u32)
                 ^ (x as u32 >> 10);
-            // let xu32 = x as i32;
-
-            // let aa = x as u32 >> 17;
-            // let ab = i32::wrapping_shl(x as i32, 15);
-            // let ac = x as u32 >> 19;
-            // let ad = i32::wrapping_shl(x, 13);
-            // let ae = x as i32 >> 10;
-            // println!(
-            //     "{}: {:08x} {:08x} {:08x} {:08x} {:08x}",
-            //     i, aa, ab, ac, ad, ae
-            // );
 
             let b = u32::wrapping_add(
                 w[i - 7] as u32,
                 u32::wrapping_add(gamma0(w[i - 15] as u32), w[i - 16] as u32),
             );
-
-            let ba = w[i - 7] as u32;
-            let bb = gamma0(w[i - 15] as u32);
-            let bc = w[i - 16] as u32;
 
             w[i] = u32::wrapping_add(a as u32, b) as i32;
             // lowercase hex padded to 8 digits
@@ -232,10 +214,6 @@ impl Sha256Hash {
         let mut h = self._h as u32;
 
         for j in 0..64 {
-            let KW = u32::wrapping_add(K[j], w[j] as u32);
-            let CH = cha(e, f, g);
-            let Sigma1 = sigma1(e);
-
             let t1 = u32::wrapping_add(
                 u32::wrapping_add(
                     u32::wrapping_add(h as u32, sigma1(e as u32)),
@@ -263,7 +241,7 @@ impl Sha256Hash {
         self._g = u32::wrapping_add(self._g, g);
         self._h = u32::wrapping_add(self._h, h);
     }
-    pub fn _hash(mut self) -> [u8; 64] {
+    pub fn _hash(&self) -> [u8; 64] {
         let mut data = [0u8; 64];
 
         fn write_u32_be(data: &mut [u8], offset: usize, value: u32) {
@@ -284,10 +262,6 @@ impl Sha256Hash {
 
         return data;
     }
-}
-
-pub fn main() {
-    println!("Hello, world!");
 }
 
 // #[cfg(test)]

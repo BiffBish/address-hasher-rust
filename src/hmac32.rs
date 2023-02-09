@@ -1,32 +1,67 @@
-use crate::sha512hash;
+use crate::{
+    profile, Profile, IS_PROFILE_RECONCILING, IS_PROFILING, PROFILING_DEPTH, PROFILING_MAP,
+    PROFILING_PATH,
+};
+use colored::Colorize;
+use std::hint::black_box;
 
+use crate::sha512hash32::{self, Sha512Hash};
+
+// fn printHex(prefix: &str, itt: impl Iterator<Item = u32>) {
+//     print!("{}  ", prefix);
+
+//     // prefix: ff, ff, ff, ff, ff, ff, ff, ff, ff
+//     //         ff, ff, ff, ff, ff, ff, ff, ff, ff
+//     let mut count = 0;
+//     for i in itt {
+//         if count % 4 == 0 && count != 0 {
+//             let padding = iter::repeat(" ").take(prefix.len()).collect::<String>();
+//             println!();
+//             print!("{}  ", padding);
+//         }
+
+//         print!("{:08x}, ", i);
+//         count += 1;
+//     }
+//     println!();
+//     println!();
+// }
+
+#[derive(Debug, Clone)]
 pub struct Hmac {
-    ipad: Vec<u8>,
-    opad: Vec<u8>,
-    hash: sha512hash::Sha512Hash,
+    ipad: Vec<u32>,
+    opad: Vec<u32>,
+    hash: sha512hash32::Sha512Hash,
 }
 
 impl Hmac {
-    pub fn new(key: Vec<u8>) -> Hmac {
-        let blocksize = 128;
+    pub fn new(key: Vec<u32>) -> Hmac {
+        // printHex("key", key.iter().cloned());
+
+        let blocksize = 128 / 4;
         let mut ipad = vec![0; blocksize];
         let mut opad = vec![0; blocksize];
-        let mut hash = sha512hash::Sha512Hash::new();
+        let mut hash = Sha512Hash::new();
         if key.len() > blocksize {
             hash.update(&key);
         } else {
             // Convert vec to [u8; 64]
         }
         for i in 0..key.len() {
-            ipad[i] = 54 ^ key[i];
-            opad[i] = 92 ^ key[i];
+            ipad[i] = 0x36363636 ^ key[i];
+            opad[i] = 0x5C5C5C5C ^ key[i];
         }
         for i in key.len()..blocksize {
-            ipad[i] = 54;
-            opad[i] = 92;
+            ipad[i] = 0x36363636;
+            opad[i] = 0x5C5C5C5C;
         }
 
         hash.update(&ipad);
+
+        // printHex("ipad", ipad.iter().cloned());
+        // printHex("opad", opad.iter().cloned());
+        // printHex("key", key.iter().cloned());
+
         Hmac {
             ipad: ipad,
             opad: opad,
@@ -34,7 +69,8 @@ impl Hmac {
         }
     }
 
-    pub fn _final(&mut self) -> Vec<u8> {
+    #[profile()]
+    pub fn _final(&mut self) -> Vec<u32> {
         // time_it!("_final",
         //     let h = self.hash.digest();
         //     self.hash.reset();
@@ -52,6 +88,8 @@ impl Hmac {
         // time_it!("  _final reset", self.hash.reset());
 
         let h = self.hash.digest();
+        // dbg!(&h);
+
         self.hash.reset();
         self.hash.update(&self.opad);
         self.hash.update(&h);
@@ -59,10 +97,13 @@ impl Hmac {
         self._reset();
         res
     }
-
-    pub fn _encrypt(&mut self, data: &Vec<u8>) -> Vec<u8> {
+    #[profile()]
+    pub fn _encrypt(&mut self, data: &Vec<u32>) -> Vec<u32> {
+        // printHex("data", data.iter().cloned());
         self.hash.update(&data);
-        self._final()
+        let final_data = self._final();
+        // printHex("final", final_data.iter().cloned());
+        final_data
     }
 
     pub fn _reset(&mut self) {
@@ -89,6 +130,8 @@ mod tests {
             0x65, 0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f,
             0x67,
         ]);
+        // );
+        // }
         assert_eq!(
             res,
             vec![
